@@ -1,209 +1,160 @@
 #Copyright ©️ 2021 TeLe TiPs. All Rights Reserved
-#You are free to use this code in any of your project, but you MUST include the following in your README.md (Copy & paste)
-# ##Credits - [Countdown Timer Telegram bot by TeLe TiPs] (https://github.com/teletips/CountdownTimer-TeLeTiPs)
+#Modified for Arabic support by Manus AI
 
-# Changing the code is not allowed! Read GNU AFFERO GENERAL PUBLIC LICENSE: https://github.com/teletips/CountdownTimer-TeLeTiPs/blob/main/LICENSE
- 
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 import os
 import asyncio
-from plugins.teletips_t import *
+import re
 from pyrogram.errors import FloodWait, MessageNotModified
-from pyrogram.raw.functions.messages import UpdatePinnedMessage
 
-bot=Client(
-    "Countdown-TeLeTiPs",
-    api_id = int(os.environ["API_ID"]),
-    api_hash = os.environ["API_HASH"],
-    bot_token = os.environ["BOT_TOKEN"]
+# --- إعدادات البوت المباشرة ---
+API_ID = 34257542
+API_HASH = "614a1b5c5b712ac6de5530d5c571c42a"
+BOT_TOKEN = "8662063487:AAFhVJQSQCpn52tv98ISkZO0ztAWCDml4UU"
+# ---------------------------
+
+# Initialize Bot
+bot = Client(
+    "Countdown-Arabic",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    bot_token=BOT_TOKEN
 )
 
-footer_message = os.environ["FOOTER_MESSAGE"]
-
+# تعيين نص التذييل مباشرة لتجنب خطأ KeyError
+footer_message = "بواسطة بوت العداد"
 stoptimer = False
 
-TELETIPS_MAIN_MENU_BUTTONS = [
-            [
-                InlineKeyboardButton('❓ HELP', callback_data="HELP_CALLBACK")
-            ],
-            [
-                InlineKeyboardButton('👥 SUPPORT', callback_data="GROUP_CALLBACK"),
-                InlineKeyboardButton('📣 CHANNEL', url='https://t.me/teletipsofficialchannel'),
-                InlineKeyboardButton('👨‍💻 CREATOR', url='https://t.me/teIetips')
-            ],
-            [
-                InlineKeyboardButton('➕ CREATE YOUR BOT ➕', callback_data="TUTORIAL_CALLBACK")
-            ]
-        ]
+# Arabic Time Parser Function
+def parse_arabic_time(time_str):
+    time_str = time_str.strip().lower()
+    
+    # Mapping common Arabic time terms to seconds
+    time_map = {
+        r'ثانية?': 1,
+        r'ثواني': 1,
+        r'دقيقة?': 60,
+        r'دقائق': 60,
+        r'دقايق': 60,
+        r'ساعة?': 3600,
+        r'ساعات': 3600,
+        r'يوم': 86400,
+        r'أيام': 86400,
+        r'ايام': 86400,
+    }
+    
+    # Special cases
+    special_cases = {
+        r'نص ساعة': 1800,
+        r'نصف ساعة': 1800,
+        r'ربع ساعة': 900,
+        r'ثلث ساعة': 1200,
+        r'ساعتين': 7200,
+        r'دقيقتين': 120,
+        r'يومين': 172800,
+    }
+    
+    for pattern, seconds in special_cases.items():
+        if re.search(pattern, time_str):
+            return seconds
+            
+    # General pattern: (number) (unit)
+    match = re.search(r'(\d+)\s*(.*)', time_str)
+    if match:
+        number = int(match.group(1))
+        unit_part = match.group(2).strip()
+        for pattern, seconds in time_map.items():
+            if re.search(pattern, unit_part):
+                return number * seconds
+                
+    # If only unit is mentioned (e.g., "ساعة")
+    for pattern, seconds in time_map.items():
+        if re.fullmatch(pattern, time_str):
+            return seconds
+            
+    return None
 
-@bot.on_message(filters.command(['start','help']) & filters.private)
+@bot.on_message(filters.command(['start', 'help', 'مساعدة']))
 async def start(client, message):
-    text = START_TEXT
-    reply_markup = InlineKeyboardMarkup(TELETIPS_MAIN_MENU_BUTTONS)
-    await message.reply(
-        text=text,
-        reply_markup=reply_markup,
-        disable_web_page_preview=True
+    help_text = (
+        "👋 **أهلاً بك في بوت العداد العربي!**\n\n"
+        "يمكنك استخدام الأمر التالي لضبط عداد:\n"
+        "<code>عداد (النص) بعد (المدة)</code>\n\n"
+        "**أمثلة:**\n"
+        "• <code>عداد مكالمة بعد ساعة</code>\n"
+        "• <code>عداد صلاة بعد نص ساعة</code>\n"
+        "• <code>عداد تذكير بعد 10 دقايق</code>\n\n"
+        "لإيقاف العداد: /stop أو /ايقاف"
     )
+    await message.reply(help_text)
 
-@bot.on_callback_query()
-async def callback_query(client: Client, query: CallbackQuery):
-    if query.data=="HELP_CALLBACK":
-        TELETIPS_HELP_BUTTONS = [
-            [
-                InlineKeyboardButton("⬅️ BACK", callback_data="START_CALLBACK")
-            ]
-            ]
-        reply_markup = InlineKeyboardMarkup(TELETIPS_HELP_BUTTONS)
-        try:
-            await query.edit_message_text(
-                HELP_TEXT,
-                reply_markup=reply_markup
-            )
-        except MessageNotModified:
-            pass
-
-    elif query.data=="GROUP_CALLBACK":
-        TELETIPS_GROUP_BUTTONS = [
-            [
-                InlineKeyboardButton("TeLe TiPs Chat [EN]", url="https://t.me/teletipsofficialontopicchat")
-            ],
-            [
-                InlineKeyboardButton("⬅️ BACK", callback_data="START_CALLBACK"),
-            ]
-            ]
-        reply_markup = InlineKeyboardMarkup(TELETIPS_GROUP_BUTTONS)
-        try:
-            await query.edit_message_text(
-                GROUP_TEXT,
-                reply_markup=reply_markup
-            )
-        except MessageNotModified:
-            pass    
-
-    elif query.data=="TUTORIAL_CALLBACK":
-        TELETIPS_TUTORIAL_BUTTONS = [
-            [
-                InlineKeyboardButton("🎥 Video", url="https://youtu.be/nYSrgdIYdTw")
-            ],
-            [
-                InlineKeyboardButton("⬅️ BACK", callback_data="START_CALLBACK"),
-            ]
-            ]
-        reply_markup = InlineKeyboardMarkup(TELETIPS_TUTORIAL_BUTTONS)
-        try:
-            await query.edit_message_text(
-                TUTORIAL_TEXT,
-                reply_markup=reply_markup
-            )
-        except MessageNotModified:
-            pass      
-          
-    elif query.data=="START_CALLBACK":
-        TELETIPS_START_BUTTONS = [
-            [
-                InlineKeyboardButton('❓ HELP', callback_data="HELP_CALLBACK")
-            ],
-            [
-                InlineKeyboardButton('👥 SUPPORT', callback_data="GROUP_CALLBACK"),
-                InlineKeyboardButton('📣 CHANNEL', url='https://t.me/teletipsofficialchannel'),
-                InlineKeyboardButton('👨‍💻 CREATOR', url='https://t.me/teIetips')
-            ],
-            [
-                InlineKeyboardButton('➕ CREATE YOUR BOT ➕', callback_data="TUTORIAL_CALLBACK")
-            ]
-        ]
-        reply_markup = InlineKeyboardMarkup(TELETIPS_START_BUTTONS)
-        try:
-            await query.edit_message_text(
-                START_TEXT,
-                reply_markup=reply_markup
-            )
-        except MessageNotModified:
-            pass    
-
-@bot.on_message(filters.command('set'))
-async def set_timer(client, message):
+@bot.on_message(filters.regex(r'^عداد\s+\((.+)\)\s+بعد\s+(.+)$') | filters.regex(r'^عداد\s+(.+)\s+بعد\s+(.+)$'))
+async def set_timer_arabic(client, message):
     global stoptimer
     try:
-        if message.chat.id>0:
-            return await message.reply('⛔️ Try this command in a **group chat**.')
-        elif not (await client.get_chat_member(message.chat.id,message.from_user.id)).privileges:
-            return await message.reply('👮🏻‍♂️ Sorry, **only admins** can execute this command.')    
-        elif len(message.command)<3:
-            return await message.reply('❌ **Incorrect format.**\n\n✅ Format should be like,\n<code> /set seconds "event"</code>\n\n**Example**:\n <code>/set 10 "10 seconds countdown"</code>')    
+        match = re.search(r'^عداد\s+\(?(.+?)\)?\s+بعد\s+(.+)$', message.text)
+        if not match:
+            return await message.reply("❌ صيغة غير صحيحة. استخدم: عداد (النص) بعد (المدة)")
+
+        user_input_event = match.group(1).strip()
+        time_str = match.group(2).strip()
+        
+        user_input_time = parse_arabic_time(time_str)
+        
+        if user_input_time is None:
+            return await message.reply(f"❌ لم أفهم مدة الوقت: {time_str}")
+
+        timer_msg = await message.reply(f"⏳ تم ضبط العداد لـ: **{user_input_event}**\nالمدة: {time_str}")
+        
+        if stoptimer: stoptimer = False
+        
+        current_time = user_input_time
+        while current_time > 0 and not stoptimer:
+            d = current_time // 86400
+            h = (current_time % 86400) // 3600
+            m = (current_time % 3600) // 60
+            s = current_time % 60
+            
+            display = ""
+            if d > 0: display += f"{d} يوم "
+            if h > 0: display += f"{h} ساعة "
+            if m > 0: display += f"{m} دقيقة "
+            if s > 0 or not display: display += f"{s} ثانية"
+            
+            text = f"🔔 **{user_input_event}**\n\n⏳ المتبقي: `{display.strip()}`\n\n_{footer_message}_"
+            
+            try:
+                await timer_msg.edit(text)
+            except MessageNotModified:
+                pass
+            except Exception:
+                break
+                
+            sleep_time = 1
+            if current_time > 60: sleep_time = 5 # تحديث كل 5 ثواني للمدد الطويلة لتجنب الحظر
+            
+            await asyncio.sleep(sleep_time)
+            current_time -= sleep_time
+
+        if not stoptimer:
+            await timer_msg.edit(f"🚨 **انتهى الوقت!**\n\nالحدث: {user_input_event}")
+            await message.reply(f"🔊 تذكير: انتهى وقت **{user_input_event}**!")
         else:
-            user_input_time = int(message.command[1])
-            user_input_event = str(message.command[2])
-            get_user_input_time = await bot.send_message(message.chat.id, user_input_time)
-            await get_user_input_time.pin()
-            if stoptimer: stoptimer = False
-            if 0<user_input_time<=10:
-                while user_input_time and not stoptimer:
-                    s=user_input_time%60
-                    Countdown_TeLe_TiPs='{}\n\n⏳ {:02d}**s**\n\n<i>{}</i>'.format(user_input_event, s, footer_message)
-                    finish_countdown = await get_user_input_time.edit(Countdown_TeLe_TiPs)
-                    await asyncio.sleep(1)
-                    user_input_time -=1
-                await finish_countdown.edit("🚨 Beep! Beep!! **TIME'S UP!!!**")
-            elif 10<user_input_time<60:
-                while user_input_time>0 and not stoptimer:
-                    s=user_input_time%60
-                    Countdown_TeLe_TiPs='{}\n\n⏳ {:02d}**s**\n\n<i>{}</i>'.format(user_input_event, s, footer_message)   
-                    finish_countdown = await get_user_input_time.edit(Countdown_TeLe_TiPs)
-                    await asyncio.sleep(3)
-                    user_input_time -=3
-                await finish_countdown.edit("🚨 Beep! Beep!! **TIME'S UP!!!**")
-            elif 60<=user_input_time<3600:
-                while user_input_time>0 and not stoptimer:
-                    m=user_input_time%3600//60
-                    s=user_input_time%60
-                    Countdown_TeLe_TiPs='{}\n\n⏳ {:02d}**m** : {:02d}**s**\n\n<i>{}</i>'.format(user_input_event, m, s, footer_message)
-                    finish_countdown = await get_user_input_time.edit(Countdown_TeLe_TiPs)
-                    await asyncio.sleep(3)
-                    user_input_time -=3
-                await finish_countdown.edit("🚨 Beep! Beep!! **TIME'S UP!!!**")
-            elif 3600<=user_input_time<86400:
-                while user_input_time>0 and not stoptimer:
-                    h=user_input_time%(3600*24)//3600
-                    m=user_input_time%3600//60
-                    s=user_input_time%60
-                    Countdown_TeLe_TiPs='{}\n\n⏳ {:02d}**h** : {:02d}**m** : {:02d}**s**\n\n<i>{}</i>'.format(user_input_event, h, m, s, footer_message)
-                    finish_countdown = await get_user_input_time.edit(Countdown_TeLe_TiPs)
-                    await asyncio.sleep(7)
-                    user_input_time -=7
-                await finish_countdown.edit("🚨 Beep! Beep!! **TIME'S UP!!!**")
-            elif user_input_time>=86400:
-                while user_input_time>0 and not stoptimer:
-                    d=user_input_time//(3600*24)
-                    h=user_input_time%(3600*24)//3600
-                    m=user_input_time%3600//60
-                    s=user_input_time%60
-                    Countdown_TeLe_TiPs='{}\n\n⏳ {:02d}**d** : {:02d}**h** : {:02d}**m** : {:02d}**s**\n\n<i>{}</i>'.format(user_input_event, d, h, m, s, footer_message)
-                    finish_countdown = await get_user_input_time.edit(Countdown_TeLe_TiPs)
-                    await asyncio.sleep(9)
-                    user_input_time -=9
-                await finish_countdown.edit("🚨 Beep! Beep!! **TIME'S UP!!!**")
-            else:
-                await get_user_input_time.edit(f"🤷🏻‍♂️ I can't countdown from {user_input_time}")
-                await get_user_input_time.unpin()
+            await timer_msg.edit("🛑 تم إيقاف العداد.")
+            stoptimer = False
+
     except FloodWait as e:
         await asyncio.sleep(e.value)
+    except Exception as e:
+        await message.reply(f"حدث خطأ: {str(e)}")
 
-@bot.on_message(filters.command('stopc'))
-async def stop_timer(Client, message):
+@bot.on_message(filters.command(['stop', 'ايقاف', 'إيقاف']))
+async def stop_timer(client, message):
     global stoptimer
-    try:
-        if (await bot.get_chat_member(message.chat.id,message.from_user.id)).privileges:
-            stoptimer = True
-            await message.reply('🛑 Countdown stopped.')
-        else:
-            await message.reply('👮🏻‍♂️ Sorry, **only admins** can execute this command.')
-    except FloodWait as e:
-        await asyncio.sleep(e.value)
+    stoptimer = True
+    await message.reply('🛑 تم إرسال أمر إيقاف العداد.')
 
-print("Countdown Timer is alive!")
-bot.run()
-
-#Copyright ©️ 2021 TeLe TiPs. All Rights Reserved
+if __name__ == "__main__":
+    print("Arabic Countdown Bot is starting...")
+    bot.run()
